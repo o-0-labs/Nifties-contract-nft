@@ -1,7 +1,7 @@
 {
     "version": 1,
     "canisters": {
-        "nft_mint_activity": {
+        "nft_mint_activity1": {
             "type": "rust",
             "candid": "nft_mint_activity.did",
             "package": "nft_mint_activity"

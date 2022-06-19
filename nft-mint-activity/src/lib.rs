@@ -15,6 +15,7 @@ use std::num::TryFromIntError;
 use std::result::Result as StdResult;
 
 use candid::{CandidType, Encode, Principal};
+use chrono::{Utc, TimeZone};
 use ic_cdk::{
     api::{self, call},
     export::candid,
@@ -63,6 +64,10 @@ struct InitArgs {
     logo: Option<LogoResult>,
     name: String,
     symbol: String,
+    white_list: Vec<Principal>,
+    begin_date: String,
+    end_date: String,
+    total_limit: String,
 }
 
 #[init]
@@ -75,6 +80,28 @@ fn init(args: InitArgs) {
         state.name = args.name;
         state.symbol = args.symbol;
         state.logo = args.logo;
+        state.white_list = args.white_list;
+        state.total_limit = args.total_limit;
+        let fmt = "%Y-%m-%d %H:%M:%S";
+        
+        match Utc.datetime_from_str(&args.begin_date, fmt){
+            Ok(_) => {
+                state.begin_date = args.begin_date
+            },
+            Err(e) => {
+                panic!("{}",e)
+            },
+        };
+        
+        match Utc.datetime_from_str(&args.end_date, fmt){
+            Ok(_) => {
+                state.end_date = args.end_date
+            },
+            Err(e) => {
+                panic!("{}",e)
+            },
+        };
+
     });
 }
 
@@ -402,6 +429,7 @@ fn mint(
     })
 }
 
+
 #[update(name = "simpleMintDip721")]
 fn simple_mint(
     to: Principal,
@@ -410,6 +438,7 @@ fn simple_mint(
     name: String,
     origin: String,
 ) -> Result<MintResult, ConstrainedError> {
+
     let mut metadata: HashMap<String, MetadataVal> = HashMap::new();
         use MetadataVal::*;
     if uri.len() > 0  {
@@ -433,7 +462,57 @@ fn simple_mint(
         data: vec![],
         key_val_data: metadata,
     };
-    mint(to, vec![metadata], vec![])
+
+    STATE.with(|state| {
+
+        let begin_date = &state.borrow().begin_date;
+        let end_date = &state.borrow().end_date;
+
+        let now = Utc::now().timestamp_millis();
+        let fmt = "%Y-%m-%d %H:%M:%S";
+        let begin_date_utc = Utc.datetime_from_str(begin_date, fmt).unwrap().timestamp_millis();
+        let end_date_utc = Utc.datetime_from_str(end_date, fmt).unwrap().timestamp_millis();
+        
+        if now < begin_date_utc || now > end_date_utc {
+            return Err(ConstrainedError::TimeError);
+        }
+
+        let white_list = &state.borrow().white_list;
+
+        if !white_list.contains(&to){
+            return Err(ConstrainedError::Unauthorized);
+        }
+        mint(to, vec![metadata], vec![])
+    })
+    
+}
+
+#[query(name = "whiteList")]
+fn white_list() -> Result<Vec<Principal>> {
+    STATE.with(|state| {
+        let white_list = state.borrow().white_list.clone();
+        ic_cdk::println!("white_list {:?}", white_list);
+        Ok(white_list)
+    })
+}
+
+#[query(name = "nftMintDate")]
+fn nft_mint_date() -> String {
+    STATE.with(|state| {
+        let nft_mint_date = format!("{},{}",state.borrow().begin_date.clone(), state.borrow().end_date.clone());
+        ic_cdk::println!("nft_mint_date {:?}", nft_mint_date);
+        nft_mint_date
+    })
+}
+
+
+#[query(name = "totalLimit")]
+fn total_limit() -> String {
+    STATE.with(|state| {
+        let total_limit = state.borrow().total_limit.clone();
+        ic_cdk::println!("total_limit {:?}", total_limit);
+        total_limit
+    })
 }
 
 // --------------
@@ -466,6 +545,10 @@ struct State {
     name: String,
     symbol: String,
     txid: u128,
+    white_list: Vec<Principal>,
+    begin_date: String,
+    end_date: String,
+    total_limit: String,
 }
 
 #[derive(CandidType, Deserialize)]
@@ -531,6 +614,7 @@ enum InterfaceId {
 #[derive(CandidType, Deserialize)]
 enum ConstrainedError {
     Unauthorized,
+    TimeError,
     // InvalidUri,
 }
 

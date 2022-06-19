@@ -105,6 +105,15 @@ type InitArgs = record {
     logo : opt LogoResult;
     name : text;
     symbol : text;
+    white_list: vec principal;
+    begin_date: text;
+    end_date: text;
+    total_limit: text;
+};
+
+type whiteListResult = variant {
+    Err : ApiError;
+    Ok : vec principal;
 };
 
 type ManageResult = variant {
@@ -146,6 +155,9 @@ service : (InitArgs) -> {
     mintDip721 : (to : principal, metadata : MetadataDesc, blobContent : blob) -> (MintReceipt);
     simpleMintDip721 : (to : principal, uri : text, mime_type : text, name : text, origin : text) -> (MintReceipt);
     burnDip721 : (token_id : nat64) -> (TxReceipt);
+    whiteList : () -> (whiteListResult);
+    nftMintDate : () -> (text);
+    totalLimit : () -> (text);
 
     set_name : (name : text) -> (ManageResult);
     set_symbol : (sym : text) -> (ManageResult);
